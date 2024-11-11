@@ -1,5 +1,3 @@
-Hier is een overzicht van alle ArchiMate-capabilities, -principes en -requirements in het Nederlands voor Master Data Management (MDM):
-
 ArchiMate Capabilities voor Master Data Management
 
 	1.	Data Management Capability
