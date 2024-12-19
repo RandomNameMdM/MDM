@@ -1,0 +1,48 @@
+using Microsoft.AspNetCore.RateLimiting;
+using System.Threading.RateLimiting;
+
+var builder = WebApplication.CreateBuilder(args);
+
+// Add the Rate Limiter
+builder.Services.AddRateLimiter(options =>
+{
+    options.GlobalLimiter = PartitionedRateLimiter.Create<HttpContext, string>(context =>
+    {
+        // Extract the user ID from claims (or use a default for unauthenticated users)
+        var userId = context.User.FindFirst("UserId")?.Value ?? "Anonymous";
+
+        // Define rate-limiting rules for each user
+        return RateLimitPartition.GetTokenBucketLimiter(
+            partitionKey: userId,
+            factory: _ => new TokenBucketRateLimiterOptions
+            {
+                TokenLimit = 10, // Max tokens per user
+                TokensPerPeriod = 5, // Refill 5 tokens
+                ReplenishmentPeriod = TimeSpan.FromSeconds(10), // Refill every 10 seconds
+                QueueLimit = 5, // Allow up to 5 queued requests per user
+                QueueProcessingOrder = QueueProcessingOrder.OldestFirst // Oldest requests are processed first
+            });
+    });
+
+    // Customize rejection response when the queue is full
+    options.OnRejected = async (context, token) =>
+    {
+        context.HttpContext.Response.StatusCode = 429; // Too Many Requests
+        await context.HttpContext.Response.WriteAsync("Rate limit exceeded. Please wait and try again.");
+    };
+});
+
+var app = builder.Build();
+
+app.UseAuthentication(); // Ensure authentication middleware is used
+app.UseAuthorization();
+app.UseRateLimiter();
+
+// Define a test endpoint
+app.MapGet("/", (HttpContext context) =>
+{
+    var userId = context.User.FindFirst("UserId")?.Value ?? "Anonymous";
+    return $"Hello, User {userId}! Your request was processed successfully.";
+});
+
+app.Run();
